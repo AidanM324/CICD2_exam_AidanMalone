@@ -13,7 +13,12 @@ from sqlalchemy import selectinload
 
 from app.database import engine, SessionLocal
 from app.models import Base, AuthorDB, BookDB
-#from app.schemas import 
+from app.schemas import(
+    AuthorCreate, AuthorRead,
+    BookCreate, BookRead,
+    AuthorUpdate, BookCreateForAuthor
+
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
