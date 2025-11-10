@@ -96,3 +96,45 @@ def update_author_patch(id:int, payload: AuthorUpdate, db: Session =Depends(get_
     commit_or_rollback(db, "Author update failed")
     db.refresh(author)
     return author
+
+@app.delete("/api/authors/{id}",  status_code=204)
+def delete_author(id:int, payload: AuthorUpdate, db: Session =Depends(get_db)) -> Response:
+    author = db.get(AuthorDB, id)
+
+    if not author:
+        raise HTTPException(status_code=404, detail="Author not found")
+    
+    db.delete(author)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+app.post("/api/books", response_model=BookRead, status_code=201)
+def create_author_book(id : int , book: BookCreateForAuthor, db: Session = Depends(get_db)):
+    author = db.get(AuthorDB, id)
+
+    if not author:
+        raise HTTPException(status_code=404, detail="Author not found")
+    
+    auth = BookDB(
+        name = book.name,
+        description = book.description,
+        author_id = author.id
+    )
+    db.add(auth)
+    commit_or_rollback(db, "Book creation failed")
+    db.refresh(auth)
+    return auth
+
+app.get("/api/books", response_model= list[BookRead], status_code=200)
+def list_books(db: Session =Depends(get_db)):
+    stmt = select(BookDB).order.by(BookDB.id)
+    return db.execute(stmt).scalars().all()
+
+@app.get("/api/books/{id}", response_model= BookRead, status_code=200)
+def get_book(id:int, db: Session =Depends(get_db)):
+    stmt = select(BookDB).where(BookDB.id == id).options(selectinload(BookDB.owner))
+    auth = db.execute(stmt).scalar_one_or_none()
+    if not auth:
+        raise HTTPException(status_code=404, detail="Author not found")
+    return auth
+
