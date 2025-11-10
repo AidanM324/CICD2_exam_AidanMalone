@@ -47,7 +47,7 @@ def health():
     return {"status": "ok"}
 
 @app.post("/api/authors", response_model=AuthorRead, status_code=201, summary="Creates new author")
-def create_author(author:AuthorCreate, db: Session = Depends(get_db));
+def create_author(author:AuthorCreate, db: Session = Depends(get_db)):
     db_authors = AuthorDB(**author.model_dump())
     db.add(db_authors)
     commit_or_rollback(db, "Author already exists")
@@ -58,3 +58,41 @@ def create_author(author:AuthorCreate, db: Session = Depends(get_db));
 def list_authors(db: Session =Depends(get_db)):
     stmt = select(AuthorDB).order.by(AuthorDB.id)
     return db.execute(stmt).scalars().all()
+
+@app.get("/api/authors/{id}", response_model= AuthorRead, status_code=200)
+def get_author(id:int, db: Session =Depends(get_db)):
+    stmt = select(AuthorDB).where(AuthorDB.id == id).options(selectinload(AuthorDB.owner))
+    auth = db.execute(stmt).scalar_one_or_none()
+    if not auth:
+        raise HTTPException(status_code=404, detail="Author not found")
+    return auth
+
+@app.put("/api/authors/{id}", response_model= AuthorRead, status_code=200)
+def update_author(id:int, payload: AuthorCreate, db: Session =Depends(get_db)):
+    author = db.get(AuthorDB, id)
+
+    if not author:
+        raise HTTPException(status_code=404, detail="Author not found")
+    
+    data = payload.model_dump()
+    author.name = data["name"]
+    author.email = data["email"]
+    author.year_started = data["year_started"]
+    commit_or_rollback(db, "User update failed")
+    db.refresh(author)
+    return author
+
+@app.patch("/api/authors/{id}", response_model= AuthorRead, status_code=200)
+def update_author_patch(id:int, payload: AuthorUpdate, db: Session =Depends(get_db)):
+    author = db.get(AuthorDB, id)
+
+    if not author:
+        raise HTTPException(status_code=404, detail="Author not found")
+    
+    update_data = payload.model_dump(exclude_unset = True)
+    for field, value in update_data.items():
+        setattr(author, field, value)
+
+    commit_or_rollback(db, "Author update failed")
+    db.refresh(author)
+    return author
