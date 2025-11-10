@@ -12,7 +12,7 @@ from sqlalchemy import selectinload
 
 
 from app.database import engine, SessionLocal
-from app.models import Base
+from app.models import Base, AuthorDB, BookDB
 #from app.schemas import 
 
 @asynccontextmanager
@@ -34,9 +34,27 @@ def get_db():
     finally:
         db.close()
 
-
+def commit_or_rollback(db: Session, error_msg:str):
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail= error_msg)
+    
 # ---- Health ----
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
+@app.post("/api/authors", response_model=AuthorRead, status_code=201, summary="Creates new author")
+def create_author(author:AuthorCreate, db: Session = Depends(get_db));
+    db_authors = AuthorDB(**author.model_dump())
+    db.add(db_authors)
+    commit_or_rollback(db, "Author already exists")
+    db.refresh(db_authors)
+    return db_authors
+
+@app.get("/api/authors", response_model= list[AuthorRead], status_code=200)
+def list_authors(db: Session =Depends(get_db)):
+    stmt = select(AuthorDB).order.by(AuthorDB.id)
+    return db.execute(stmt).scalars().all()
